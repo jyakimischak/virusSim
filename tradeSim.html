@@ -1,0 +1,88 @@
+<html>
+
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chance/1.1.4/chance.min.js" integrity="sha256-+bo9VPNB85DWg5DKk5YGyHqCd4zCK4fjnhD9hSIM/aI=" crossorigin="anonymous"></script>
+</head>
+
+<body>
+
+  <button onclick="runSim()">Run Sim</button>
+
+
+</body>
+
+
+<script>
+  
+
+  var rNaughtMin = 1.5
+  var rNaughtMax = 3.4
+
+  var timeToRecoverMin = 2
+  var timeToRecoverMax = 6
+
+  var timeToDeathMin = 2
+  var timeToDeathMax = 8
+
+  var mortalityRate = 0.03
+
+  // var populationCount = 700000
+  var populationCount = 10
+
+  var population = []
+
+
+
+  function runSim() {
+    population = []
+    initPopulation()
+
+    oneWeek()
+    oneWeek()
+    oneWeek()
+  }
+
+  function initPopulation() {
+    population.push({
+      isAlive: true,
+      isInfected: true,
+      isCured: false,
+      hasSpread: false
+    })
+    for(let i = 0; i < populationCount-1; i++) {
+      population.push({
+        isAlive: true,
+        isInfected: false,
+        isCured: false,
+        hasSpread: false
+      })
+    }
+  }
+
+  function oneWeek() {
+    infect()
+    console.log(population)
+  }
+
+  function infect() {
+    let readyToInfect = population.filter((p) => p.isAlive && p.isInfected && !p.isCured && !p.hasSpread)
+    let canBeInfected = population.filter((p) => p.isAlive && !p.isInfected && !p.isCured)
+
+    ///get a random in the rNaught range for each person and add them together
+    let numToBeInfected = Math.ceil(readyToInfect.map((e) => {
+      return chance.floating({ min: rNaughtMin, max: rNaughtMax })
+    }).reduce((p, c) => p + c, 0))
+
+    if(numToBeInfected > canBeInfected.length) {
+      numToBeInfected = canBeInfected.length
+    }
+
+    for(let i = 0; i < numToBeInfected; i++) {
+      canBeInfected.isInfected = true
+    }
+  }
+
+</script>
+
+
+</html>
