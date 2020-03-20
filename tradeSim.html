@@ -6,7 +6,26 @@
 
 <body>
 
-  <button onclick="runSim()">Run Sim</button>
+  <button onclick="runSim()">Run Sim</button><br/><br/>
+
+  Week Number <span id="weekNum">0</span><br/><br/>
+
+  <table>
+    <thead>
+      <th>Total Population</th>
+      <th>Num Infected</th>
+      <th>Num Cured</th>
+      <th>Num Dead</th>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span id="totalPopulation"></span></td>
+        <td><span id="numInfected"></span></td>
+        <td><span id="numCured"></span></td>
+        <td><span id="numDead"></span></td>
+      </tr>
+    </tbody>
+  </table>
 
 
 </body>
@@ -24,61 +43,139 @@
   var timeToDeathMin = 2
   var timeToDeathMax = 8
 
-  var mortalityRate = 0.03
+  // var mortalityRatePercent = 3
+  var mortalityRatePercent = 50
 
   // var populationCount = 700000
-  var populationCount = 10
+  var populationCount = 10000
 
-  var population = []
+  var population = {}
 
+  var intervalVar = null
+  var numWeeks = 200
+  var week = 0
+
+  var millisecsPerWeek = 100
+
+  let weekNum = document.getElementById('weekNum')
+  let totalPopulation = document.getElementById('totalPopulation')
+  let numInfected = document.getElementById('numInfected')
+  let numCured = document.getElementById('numCured')
+  let numDead = document.getElementById('numDead')
 
 
   function runSim() {
+    setupOutput()
+    week = 0
     population = []
     initPopulation()
 
-    oneWeek()
-    oneWeek()
-    oneWeek()
+    intervalVar = setInterval(oneWeek, millisecsPerWeek)
+  }
+
+  function setupOutput() {
+    weekNum.innerHTML = '0'
+    totalPopulation.innerHTML = populationCount
+    numInfected.innerHTML = 1
+    numCured.innerHTML = 0
+    numDead.innerHTML = 0
   }
 
   function initPopulation() {
-    population.push({
+    let willFirstDie = chance.d100() <= mortalityRatePercent
+    population['0'] = {
+      id: '0',
       isAlive: true,
       isInfected: true,
       isCured: false,
-      hasSpread: false
-    })
-    for(let i = 0; i < populationCount-1; i++) {
-      population.push({
+      hasSpread: false,
+      weekInfected: 0,
+      willDie: willFirstDie,
+      lastDiseaseWeek: willFirstDie ? chance.integer({min: timeToRecoverMin, max: timeToRecoverMax}) + 1 :
+        chance.integer({min: timeToDeathMin, max: timeToDeathMax}) + 1
+    }
+    for(let i = 1; i < populationCount; i++) {
+      population[i.toString()] = {
+        id: i.toString(),
         isAlive: true,
         isInfected: false,
         isCured: false,
         hasSpread: false
-      })
+      }
     }
   }
 
   function oneWeek() {
     infect()
-    console.log(population)
+    cure()
+    kill()
+    outputWeek()
+    stopSim()
+    week++
   }
 
   function infect() {
-    let readyToInfect = population.filter((p) => p.isAlive && p.isInfected && !p.isCured && !p.hasSpread)
-    let canBeInfected = population.filter((p) => p.isAlive && !p.isInfected && !p.isCured)
-
-    ///get a random in the rNaught range for each person and add them together
-    let numToBeInfected = Math.ceil(readyToInfect.map((e) => {
-      return chance.floating({ min: rNaughtMin, max: rNaughtMax })
-    }).reduce((p, c) => p + c, 0))
-
-    if(numToBeInfected > canBeInfected.length) {
-      numToBeInfected = canBeInfected.length
+    let numToInfectCount = 0
+    for(let p of population) {
+      if(p.isAlive && p.isInfected && !p.isCured && !p.hasSpread) {
+        numToInfectCount++
+        p.hasSpread = true
+      }
     }
 
-    for(let i = 0; i < numToBeInfected; i++) {
-      canBeInfected.isInfected = true
+    let numToBeInfected = 0
+    for(let i = 0; i < numToInfectCount; i++) {
+      numToBeInfected += chance.floating({ min: rNaughtMin, max: rNaughtMax })
+    }
+    numToBeInfected = Math.ceil(numToBeInfected)
+
+    for(let p of population) {
+      if(!p.isAlive || p.isInfected || p.isCured) {
+          continue
+      }
+      if(numToBeInfected <= 0) {
+        break
+      }
+      p.isInfected = true
+      p.weekInfected = week
+      p.willDie = chance.d100() <= mortalityRatePercent
+      p.lastDiseaseWeek = p.willDie ? chance.integer({min: timeToRecoverMin, max: timeToRecoverMax}) + 1 :
+        chance.integer({min: timeToDeathMin, max: timeToDeathMax}) + 1
+      numToBeInfected--
+    }
+  }
+
+  function cure() {
+    for(let p of population) {
+      if(!p.isInfected || !p.isAlive || p.isCured || p.willDie) {
+        continue
+      }
+      if(p.weekInfected + p.lastDiseaseWeek === week) {
+        p.isCured = true
+      }
+    }
+  }
+
+  function kill() {
+    for(let p of population) {
+      if(p.isInfected && p.isAlive && p.willDie) {
+        if(p.weekInfected + p.lastDiseaseWeek === week) {
+          p.isAlive = false
+        }
+      }
+    }
+  }
+
+  function outputWeek() {
+    weekNum.innerHTML = week
+    numInfected.innerHTML = Object.values(population).filter((p) => p.isInfected && !p.isCured && p.isAlive).length
+    numCured.innerHTML = Object.values(population).filter((p) => p.isCured).length
+    numDead.innerHTML = Object.values(population).filter((p) => !p.isAlive).length
+  }
+
+  function stopSim() {
+    if(week === numWeeks-1 || Object.values(population).filter((p) => p.isInfected && !p.isCured && p.isAlive).length === 0) {
+      clearInterval(intervalVar)
     }
   }
 
